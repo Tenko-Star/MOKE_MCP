@@ -53,6 +53,8 @@ def build_parser() -> argparse.ArgumentParser:
     g = sub.add_parser("tree", help="树形打印项目结构(找 page id)")
     g.add_argument("app_id")
     g.add_argument("--format", choices=["text", "json"], default="text")
+    g.add_argument("--flat", action="store_true",
+                   help="输出扁平 JSON {pages, groups}(供 MCP server 消费,忽略 --format)")
     g.add_argument("--refresh", action="store_true")
 
     # cookie

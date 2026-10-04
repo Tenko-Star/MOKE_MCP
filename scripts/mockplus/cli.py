@@ -103,6 +103,11 @@ def _node_summary_json(node: dict) -> dict:
 def action_tree(args) -> int:
     idx = client.fetch_index(args.app_id, refresh=args.refresh)
 
+    if getattr(args, "flat", False):
+        pages, groups = client.flatten_pages(idx)
+        print(json.dumps({"pages": pages, "groups": groups}, ensure_ascii=False, indent=2))
+        return 0
+
     if args.format == "json":
         out = [_node_summary_json(root) for root in idx["payload"]["pages"]]
         print(json.dumps(out, ensure_ascii=False, indent=2))
@@ -235,6 +240,12 @@ def action_download(args) -> int:
     print(f"目标切图: {len(slices)} 个 → {out_dir}", file=sys.stderr)
 
     stats = client.download_slices(slices, out_dir)
+    # 逐个 ref 判定是否命中(避免按 hash 去重后误报)
+    unmatched = sorted(w for w in wanted if not client.extract_slices(data, wanted={w})) \
+        if wanted is not None else []
+    if unmatched:
+        print(f"WARN: 未匹配的 ref: {', '.join(unmatched)}", file=sys.stderr)
+    stats["unmatched"] = unmatched
     if getattr(args, "json", False):
         print(json.dumps(stats, ensure_ascii=False))
         return 0

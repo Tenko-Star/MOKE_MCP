@@ -102,6 +102,10 @@ class TestWeightAndSlice(unittest.TestCase):
             transform._slice_bitmap_url({"bitmapURL": "https://img02.mockplus.cn/idoc/sketch/h/x.png"}),
             "https://img02.mockplus.cn/idoc/sketch/h/x.png")
 
+    def test_url_hash_sketch_and_figma(self):
+        self.assertEqual(transform.url_hash("https://img02.mockplus.cn/idoc/sketch/h1/x.png"), "h1")
+        self.assertEqual(transform.url_hash("https://img02hw.mockplus.cn/idoc/figma/h2/x.png"), "h2")
+
     def test_slice_bitmap_dict(self):
         u = {"1": {"url": "https://img02.mockplus.cn/x/1.png"},
              "3": {"url": "https://img02.mockplus.cn/x/3.png"}}

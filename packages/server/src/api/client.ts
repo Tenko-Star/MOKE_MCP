@@ -225,18 +225,19 @@ function mapExitCodeToMessage(code: number, stderr: string, context: string): st
 export async function fetchPageTree(appId: string): Promise<{ pages: PageMeta[]; groups: GroupInfo[] }> {
   logger.info(`[API] 获取项目页面树: ${appId}`);
 
-  const result = await runPython(['tree', appId, '--format', 'json']);
+  const result = await runPython(['tree', appId, '--format', 'json', '--flat']);
   const output = handleResult(result, '获取页面树');
 
+  let data;
   try {
-    const data = JSON.parse(output);
-    return {
-      pages: data.pages || [],
-      groups: data.groups || [],
-    };
+    data = JSON.parse(output);
   } catch {
     throw new MockplusError('解析页面树响应失败', 'PARSE_ERROR');
   }
+  if (!Array.isArray(data?.pages) || !Array.isArray(data?.groups)) {
+    throw new MockplusError('页面树响应结构异常（缺 pages/groups）', 'PARSE_ERROR');
+  }
+  return { pages: data.pages, groups: data.groups };
 }
 
 /**
@@ -313,7 +314,7 @@ export async function downloadImages(
   url: string,
   hashes: string[],
   outDir: string
-): Promise<{ ok: number; fail: number; cached: number; total: number }> {
+): Promise<{ ok: number; fail: number; cached: number; total: number; unmatched: string[] }> {
   logger.info(`[API] 下载切图: ${hashes.length} 个 → ${outDir}`);
 
   const nodesArg = hashes.join(',');
@@ -324,17 +325,18 @@ export async function downloadImages(
   handleResult(result, '下载切图');
 
   try {
-    const stats = JSON.parse(result.stdout) as { ok: number; fail: number; cached: number; total: number };
+    const stats = JSON.parse(result.stdout) as {
+      ok: number; fail: number; cached: number; total: number; unmatched?: string[];
+    };
     return {
       ok: stats.ok ?? 0,
       fail: stats.fail ?? 0,
       cached: stats.cached ?? 0,
       total: stats.total ?? 0,
+      unmatched: stats.unmatched ?? [],
     };
   } catch {
-    // Python 侧契约升级前(无 --json)的兜底:保持旧行为不中断调用方
-    logger.warn('[API] download --json 响应解析失败，回退估算统计');
-    return { ok: hashes.length, fail: 0, cached: 0, total: hashes.length };
+    throw new MockplusError('解析下载统计失败（期望 JSON）', 'PARSE_ERROR');
   }
 }
 

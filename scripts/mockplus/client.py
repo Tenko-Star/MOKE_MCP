@@ -315,10 +315,10 @@ def test_cookie_api(app_id: str) -> int:
 # ============================================================
 
 def url_hash(u: Optional[str]) -> Optional[str]:
-    """https://img02.mockplus.cn/idoc/sketch/<hash>/wbyrvwvvlh.png → <hash>"""
+    """https://img02.mockplus.cn/idoc/{sketch|figma}/<hash>/wbyrvwvvlh.png → <hash>"""
     if not u:
         return None
-    m = re.search(r"/sketch/([^/]+)/", u)
+    m = re.search(r"/(?:sketch|figma)/([^/]+)/", u)
     return m.group(1) if m else None
 
 
