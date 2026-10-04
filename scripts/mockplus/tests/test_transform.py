@@ -292,7 +292,7 @@ class TestExtractNode(unittest.TestCase):
 
 class TestFullTransform(unittest.TestCase):
     def test_real_doctor_home_healthy(self):
-        data = json.loads((FIXTURES / "real-doctor-home.json").read_text())
+        data = json.loads((FIXTURES / "real-doctor-home.json").read_text(encoding="utf-8"))
         result = run_transform(data)
         meta = result["_meta"]
         self.assertEqual(meta["coordinateSpace"], "parent-relative")
@@ -311,18 +311,18 @@ class TestFullTransform(unittest.TestCase):
         self.assertIn("IMAGE", types)
 
     def test_synthetic_edge_no_errors(self):
-        data = json.loads((FIXTURES / "synthetic-edge.json").read_text())
+        data = json.loads((FIXTURES / "synthetic-edge.json").read_text(encoding="utf-8"))
         result = run_transform(data)
         self.assertEqual(result["_meta"]["stats"]["errors"], 0)
         self.assertEqual(result["_meta"]["unknownTypes"], {"_UNKNOWN_WEIRDWIDGET": 1})
 
     def test_absolute_coords_kept(self):
-        data = json.loads((FIXTURES / "synthetic-edge.json").read_text())
+        data = json.loads((FIXTURES / "synthetic-edge.json").read_text(encoding="utf-8"))
         result = run_transform(data, coords="absolute")
         self.assertEqual(result["_meta"]["coordinateSpace"], "absolute-artboard")
 
     def test_invalid_coords_fail_fast(self):
-        data = json.loads((FIXTURES / "synthetic-edge.json").read_text())
+        data = json.loads((FIXTURES / "synthetic-edge.json").read_text(encoding="utf-8"))
         with self.assertRaises(ValueError):
             run_transform(data, coords="bogus")
 

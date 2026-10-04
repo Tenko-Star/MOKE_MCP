@@ -11,6 +11,8 @@ import * as os from 'os';
 import { fileURLToPath } from 'url';
 import { logger } from '../utils/logger.js';
 import { MockplusError } from '../utils/error-handler.js';
+import { getPythonCandidates, isPythonNotFound, withPythonUtf8Env } from '../utils/python.js';
+import type { PythonCommand } from '../utils/python.js';
 import type { PythonResult, PageMeta, GroupInfo, DesignData, CookieStatus, PageTreeNode } from './types.js';
 import { MockplusExitCode } from './types.js';
 
@@ -65,43 +67,63 @@ export function parseMockplusUrl(url: string): ParsedUrl {
   return { type: 'dt', appId, targetId };
 }
 
+/** 已验证可用的解释器(首次成功后缓存) */
+let resolvedPython: PythonCommand | null = null;
+
 /**
- * 执行 Python 子进程
+ * 用指定解释器执行一次 Python 子进程
+ * 解释器不存在时 resolve null，由调用方尝试下一个候选
  */
-function runPython(args: string[], stdin?: string): Promise<PythonResult> {
-  const env = { ...process.env };
-  // 如果设置了 MOKE_COOKIE 环境变量，映射为 MOCKPLUS_COOKIE（Python 脚本识别的变量）
-  if (process.env.MOKE_COOKIE) {
-    env.MOCKPLUS_COOKIE = process.env.MOKE_COOKIE;
-  }
-
-  const scriptPath = path.join(SCRIPTS_DIR, 'mockplus.py');
-
+function spawnPython(
+  python: PythonCommand,
+  scriptArgs: string[],
+  env: NodeJS.ProcessEnv,
+  stdin?: string
+): Promise<PythonResult | null> {
   return new Promise((resolve, reject) => {
-    const proc = spawn('python3', [scriptPath, ...args], {
+    const proc = spawn(python.cmd, [...python.args, ...scriptArgs], {
       env,
       stdio: stdin ? ['pipe', 'pipe', 'pipe'] : ['ignore', 'pipe', 'pipe'],
     });
 
-    let stdout = '';
-    let stderr = '';
+    // 按 Buffer 收集，close 时统一解码，避免多字节字符跨 chunk 被截断
+    const stdoutChunks: Buffer[] = [];
+    const stderrChunks: Buffer[] = [];
+    let settled = false;
 
     proc.stdout!.on('data', (data: Buffer) => {
-      stdout += data.toString();
+      stdoutChunks.push(data);
     });
     proc.stderr!.on('data', (data: Buffer) => {
-      stderr += data.toString();
+      stderrChunks.push(data);
     });
 
     if (stdin && proc.stdin) {
+      proc.stdin.on?.('error', () => { /* 解释器不存在时 stdin 写入会 EPIPE，交给 error/close 处理 */ });
       proc.stdin.write(stdin);
       proc.stdin.end();
     }
 
     proc.on('close', (code) => {
-      resolve({ stdout, stderr, code: code ?? 0 });
+      if (settled) return;
+      settled = true;
+      if (isPythonNotFound(code)) {
+        resolve(null);
+        return;
+      }
+      resolve({
+        stdout: Buffer.concat(stdoutChunks).toString('utf8'),
+        stderr: Buffer.concat(stderrChunks).toString('utf8'),
+        code: code ?? 0,
+      });
     });
-    proc.on('error', (err) => {
+    proc.on('error', (err: NodeJS.ErrnoException) => {
+      if (settled) return;
+      settled = true;
+      if (isPythonNotFound(err)) {
+        resolve(null);
+        return;
+      }
       reject(
         new MockplusError(
           `Python 脚本执行失败: ${err.message}。请确保已安装 Python 3`,
@@ -110,6 +132,35 @@ function runPython(args: string[], stdin?: string): Promise<PythonResult> {
       );
     });
   });
+}
+
+/**
+ * 执行 Python 子进程
+ */
+async function runPython(args: string[], stdin?: string): Promise<PythonResult> {
+  const env = withPythonUtf8Env(process.env);
+  // 如果设置了 MOKE_COOKIE 环境变量，映射为 MOCKPLUS_COOKIE（Python 脚本识别的变量）
+  if (process.env.MOKE_COOKIE) {
+    env.MOCKPLUS_COOKIE = process.env.MOKE_COOKIE;
+  }
+
+  const scriptPath = path.join(SCRIPTS_DIR, 'mockplus.py');
+  const candidates = resolvedPython ? [resolvedPython] : getPythonCandidates();
+
+  for (const python of candidates) {
+    const result = await spawnPython(python, [scriptPath, ...args], env, stdin);
+    if (result) {
+      resolvedPython = python;
+      return result;
+    }
+  }
+
+  const tried = candidates.map((c) => [c.cmd, ...c.args].join(' ')).join(', ');
+  throw new MockplusError(
+    `Python 脚本执行失败: 未找到可用的 Python 3 解释器(已尝试: ${tried})。` +
+      '请确保已安装 Python 3，或通过环境变量 MOKE_PYTHON 指定解释器路径',
+    'PYTHON_ERROR'
+  );
 }
 
 /**

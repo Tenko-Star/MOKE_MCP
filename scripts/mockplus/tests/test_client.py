@@ -99,7 +99,7 @@ class TestCookieStatus(unittest.TestCase):
             fp.write_text(
                 f"# set_at: {now}\n"
                 f"# expires_at: {now + 30 * 86400}\n"
-                "abc=123;\n")
+                "abc=123;\n", encoding="utf-8")
             with mock.patch.dict(os.environ, {"MOCKPLUS_COOKIE_FILE": str(fp)}):
                 st = client.cookie_status()
                 self.assertTrue(st["exists"])
@@ -115,7 +115,7 @@ class TestStaleFallback(unittest.TestCase):
             app = "app-cache-1"
             cache_dir = Path(td) / app
             cache_dir.mkdir(parents=True)
-            (cache_dir / "_index.json").write_text(json.dumps(idx))
+            (cache_dir / "_index.json").write_text(json.dumps(idx), encoding="utf-8")
             with mock.patch.dict(os.environ, {"MOCKPLUS_CACHE_DIR": td}):
                 got = client.fetch_index(app)
                 self.assertEqual(got, idx)
@@ -128,7 +128,7 @@ class TestStaleFallback(unittest.TestCase):
             cache_dir = Path(td) / app
             cache_dir.mkdir(parents=True)
             fp = cache_dir / "_index.json"
-            fp.write_text(json.dumps(idx))
+            fp.write_text(json.dumps(idx), encoding="utf-8")
             old = time.time() - 3 * 86400
             os.utime(fp, (old, old))
             with mock.patch.dict(os.environ, {"MOCKPLUS_CACHE_DIR": td}):

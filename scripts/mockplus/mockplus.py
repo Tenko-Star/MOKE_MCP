@@ -72,6 +72,13 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv=None) -> int:
+    # Windows 下 stdio 默认是本地代码页(如 GBK)且 \n 会转成 \r\n:统一为 UTF-8 + LF
+    for stream, kw in ((sys.stdout, {"encoding": "utf-8", "newline": "\n"}),
+                       (sys.stderr, {"encoding": "utf-8", "newline": "\n"}),
+                       (sys.stdin, {"encoding": "utf-8"})):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is not None:
+            reconfigure(**kw)
     args = build_parser().parse_args(argv)
     # 延迟 import,避免没装 PyYAML 时也能跑 cookie/tree
     import cli
