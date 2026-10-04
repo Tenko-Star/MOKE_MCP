@@ -508,6 +508,10 @@ A: 重新从浏览器获取 cookie，运行 `moke-mcp cookie set` 或更新环�
 
 A: macOS 执行 `brew install python3`；Windows 从 [python.org](https://www.python.org/downloads/) 下载安装（勾选 Add python.exe to PATH）或执行 `winget install Python.Python.3`。已安装但仍找不到时，可设置环境变量 `MOKE_PYTHON` 指定解释器路径。
 
+**Q: Windows 上升级后报 `UnicodeDecodeError: 'utf-8' codec can't decode byte ...`？**
+
+A: 旧版本在 Windows 上按系统代码页（GBK）写入了本地缓存，新版本统一按 UTF-8 读写。升级后删除一次缓存目录即可（下次调用会自动重建）：默认为 `~/.cache/mockplus`（Windows 即 `%USERPROFILE%\.cache\mockplus`）；如设置了 `MOCKPLUS_CACHE_DIR`，则删除该目录。
+
 **Q: 支持摹客 RP 吗？**
 
 A: 当前仅支持摹客 DT（app.mockplus.cn），不支持摹客 RP（原型工具）。
